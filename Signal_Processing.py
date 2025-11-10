@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pn
 from scipy.optimize import curve_fit
-
+from copy import deepcopy
 from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 
@@ -208,16 +208,46 @@ def noise_reduction(data: dict) -> dict:
      return new_data
 
 
-def retrieve_AM_data(filename, carrier_freq) -> dict:
+def demodulate_AM_wave(filename, carrier_freq) -> dict:
+    # works only for cosine carrier waves. doesnt work for sine or a combination.
     # take the df of the wave in time space
     am_wave = get_data(filename).values()
+    t = np.array(am_wave[:, 0])
+    # make local carrier cos(w0t)
+    loc_carrier = np.cos(2*np.pi*carrier_freq*t)
+    # multiply with original signal
+    mod_wave = am_wave[:, 1] * loc_carrier
     # analyze fourier:
     interval = am_wave.iloc[2,0]-am_wave.iloc[1,0]
-    am_wave_spectrum = fourier_trans(am_wave.iloc[:,1],interval)
-    for freq in am_wave_spectrum[0].keys():
-        # move back by a known offset which i the carrier frequency
-        am_wave_spectrum[freq] -= carrier_freq
-    # inverse fourier
+    mod_wave_spectrum = fourier_trans(mod_wave,interval)
+    # READ THIS!!
+    # need to finish -
+        # 1. take mod wave (now at freq domain) and filter it
+        # understand how to filter -> we need to filter out a(2-2w0) and a(w+20)
+        # ifft the filtered wave and get a(t)
+
 
     # original_data_signal = ifft(fft_am_wave)
      #return original_data_signal
+
+#old demodulating AM thoruhg moving freq spectrum. too hard.
+
+#def demodulate_AM_wave(filename, carrier_freq) -> dict:
+    # works only for cosine carrier waves. doesnt work for sine or a combination.
+    # take the df of the wave in time space
+ #   am_wave = get_data(filename).values()
+    # analyze fourier:
+  #  interval = am_wave.iloc[2,0]-am_wave.iloc[1,0]
+   # am_wave_spectrum = fourier_trans(am_wave.iloc[:,1],interval)
+    # shift by w0 to the right
+    #move_right_wave = deepcopy(am_wave_spectrum)
+    for freq in move_right_wave[0].keys():
+     #   move_right_wave[freq + carrier_freq] = move_right_wave[freq]
+      #  move_right_wave[freq] = 0
+    # shift by w0 to the right:
+    #move_left_wave = deepcopy(am_wave_spectrum)
+    #for freq in move_left_wave[0].keys():
+     #   move_left_wave[freq] -= carrier_freq
+    # combine them. we get a^(w) + 1/2 a^(w-2w0) + 1/2 a^(w+2w0):
+    ##   am_wave_spectrum[freq] = move_right_wave[freq] + move_left_wave[freq]
+    # filter w-2w0, w+2w0:
