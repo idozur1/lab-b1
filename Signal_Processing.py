@@ -25,9 +25,37 @@ def get_data(filename: str) -> dict:
         all_sheet_dict[dist] = data.iloc[7:, :2]
     return all_sheet_dict
 
-#define fit
+def fourier_trans(data: list, period) -> tuple:
+    #example usage: fourier_trans([1,8,1,0,0,5,4,2 5], 0.5) for a 4 sec measurement in 2 Hz (4*2=8 items in list)
 
-#THIS IS A TEST
+    length = len(data)
+    fft = np.abs(np.fft.fft(data,
+                            norm='forward'))  # norm = 'forward' divides rsults by n number of counts keeping normalization (inverse fourier requires no further division)
+    output_freqs = np.fft.fftfreq(length, period)
+    output_data = {}
+    for i in range(length):
+        output_data[output_freqs[i]] = fft[i]
+
+    return output_data, period
+
+BG_NOISE = pn.read_excel("noise.xlsx")
+fft_noise_dict = fourier_trans(BG_NOISE.iloc[:,1].tolist(), 0.0002)[0]
+noise_freqs = sorted([f for f in fft_noise_dict.keys() if f>=0])
+noise_amps = [fft_noise_dict[f] for f in noise_freqs]
+NOISE_INTERP = interp.interp1d(noise_freqs, noise_amps, bounds_error=False, fill_value=0)
+
+def noise_reduction(data: dict) -> dict:
+    # recieves a dict of freq:volt values in frequency doamin
+    new_data = {}
+    for freq, amp in data.items():
+        if freq >= 0:
+            estimated_noise = NOISE_INTERP(freq)
+            new_data[freq] = max(0, amp - estimated_noise)
+        else:
+            new_data[freq] = amp
+    return new_data
+
+#define fit
 
 def fit_func(r, k, b):
         return k/r**2 + b
@@ -61,7 +89,7 @@ def analyse_fourier(dataset: dict) -> dict:
         output = {}
         for i in range(len(output_freqs)):
             output[output_freqs[i]] = fft[i]
-
+        output = noise_reduction(output)
         #save result
 
         amp = max(fft)
@@ -105,8 +133,6 @@ def analyze_min_max(data :dict, freq: int):
         amp = (np.mean(peaks) - np.mean(valleys)) / 2
         result_dict[int(dist[:2])] = amp
     return result_dict
-
-# This is a test 2
 
 def min_max_fit_model(r, k, c):
     # model of decaying light when light is transmitted as a point source is proportional to 1/r^2.
@@ -185,35 +211,9 @@ plt.show()
 
 # week 2:
 
-def fourier_trans(data: list, period) -> tuple:
-    #example usage: fourier_trans([1,8,1,0,0,5,4,2 5], 0.5) for a 4 sec measurement in 2 Hz (4*2=8 items in list)
+# move fourier trans and noise reduction to the beginning of the code
 
-    length = len(data)
-    fft = np.abs(np.fft.fft(data,
-                            norm='forward'))  # norm = 'forward' divides rsults by n number of counts keeping normalization (inverse fourier requires no further division)
-    output_freqs = np.fft.fftfreq(length, period)
-    output_data = {}
-    for i in range(length):
-        output_data[output_freqs[i]] = fft[i]
 
-    return output_data, period
-
-BG_NOISE = pn.read_excel("noise.xlsx")
-fft_noise_dict = fourier_trans(BG_NOISE.iloc[:,1].tolist(), 0.0002)[0]
-noise_freqs = sorted([f for f in fft_noise_dict.keys() if f>=0])
-noise_amps = [fft_noise_dict[f] for f in noise_freqs]
-NOISE_INTERP = interp.interp1d(noise_freqs, noise_amps, bounds_error=False, fill_value=0)
-
-def noise_reduction(data: dict) -> dict:
-     # recieves a dict of freq:volt values in frequency doamin
-     new_data = {}
-     for freq, amp in data.items():
-         if freq >= 0:
-             estimated_noise = NOISE_INTERP(freq)
-             new_data[freq] = max(0, amp - estimated_noise)
-         else:
-             new_data[freq] = amp
-     return new_data
 
 # Aliasing:
 
@@ -265,6 +265,7 @@ def demodulate_AM_wave(filename, carrier_freq) -> dict:
     # analyze fourier:
     interval = am_wave.iloc[2,0]-am_wave.iloc[1,0]
     mod_wave_spectrum = fourier_trans(mod_wave,interval)
+
     # READ THIS!!
     # need to finish -
         # 1. take mod wave (now at freq domain) and filter it
