@@ -44,6 +44,7 @@ noise_freqs = sorted([f for f in fft_noise_dict.keys() if f>=0])
 noise_amps = [fft_noise_dict[f] for f in noise_freqs]
 NOISE_INTERP = interp.interp1d(noise_freqs, noise_amps, bounds_error=False, fill_value=0)
 
+
 def noise_reduction(data: dict) -> dict:
     # recieves a dict of freq:volt values in frequency doamin
     new_data = {}
@@ -228,10 +229,13 @@ def alias_plot(filename):
         #plot:
         x_data = []
         y_data = []
-        for freq, amp in filtered_spectrum.items():
+        for freq, amp in meas_spectrum.items(): #change meas_spectrum to filtered_spectrum to get noise reduction
             if freq >= 0:
                 x_data.append(freq)
                 y_data.append(amp)
+        #epsilon = 1e-12 # small epsilon o vaoid log(0)
+      #  for i in range(len(y_data)): # convert V -> dB
+            #y_data[i] = 20 * np.log10(y_data[i] + epsilon)
         sorted_pairs = sorted(zip(x_data, y_data))
         freqs = [pair[0] for pair in sorted_pairs]
         amps = [pair[1] for pair in sorted_pairs]
@@ -247,7 +251,7 @@ def alias_plot(filename):
 alias_plot("alias.xlsx")
 
 
-
+plt.plot(noise_freqs, noise_amps)
 
 
 
