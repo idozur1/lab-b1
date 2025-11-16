@@ -50,8 +50,8 @@ def get_residuals(data:dict, fit_func):
 
     residuals = {}
 
-    for x, value in data.items():
-        residuals[x] = value-fit_func(x)
+    for w, value in data.items():
+        residuals[w] = value-fit_func(w)
 
     return residuals
 
