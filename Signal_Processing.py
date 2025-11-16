@@ -356,7 +356,8 @@ def demodulate_AM_wave(filename, carrier_freq) -> dict:
         # understand how to filter -> we need to filter out a(2-2w0) and a(w+20)
         # ifft the filtered wave and get a(t)
 
-##
+#
+
 
     # original_data_signal = ifft(fft_am_wave)
      #return original_data_signal
