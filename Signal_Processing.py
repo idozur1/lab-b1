@@ -423,23 +423,30 @@ def demodulate_am_wave(filename, carrier_freq) -> dict:
     loc_carrier = np.cos(2*np.pi*carrier_freq*t)
     # multiply with original signal:
     mod_wave_amps = amps * loc_carrier
-    #make data dict for fft:
-    mod_wave_data_dict = dict(zip(t, mod_wave_amps))
-    # fft:
-    fft_output = fourier_trans(mod_wave_data_dict, True, time_interval={'mode': 'auto'})
-    results_dict = fft_output['fourier_trans']
+    # calculate full fft:
+    n_samples = len(t)
+    dt = t.iloc[1] - t.iloc[0]
+    full_fft_vals = np.fft.rfft(mod_wave_amps, norm ='forward')
+    full_freqs = np.fft.rfftfreq(n_samples, dt)
     # apply low-pass filter:
     CUTOFF_FREQ = 50 #in hz
-    lp_filtered = {}
-    for freq, val in results_dict.items():
-        if freq <= CUTOFF_FREQ:
-            lp_filtered[freq] = val
-    # make inverse fft:
-    original_freqs = np.fft.irfft(list(lp_filtered.values()), len(t))
-    # add a plot function.
+    lp_filtered_array = np.zeros_like(full_fft_vals) # zero padding with N/2 + 1 length
+    for i, freq in enumerate(full_freqs):
+        if (freq <= CUTOFF_FREQ):
+            lp_filtered_array[i] = full_fft_vals[i]
+        # else remains 0 (thats the low pass filter)
+    # make inverse fft after LP filtering:
+    recovered_data = np.fft.irfft(lp_filtered_array, n=n_samples)
+    # Plotting:
     plt.figure(figsize=(10, 5))
-    plt.plot(original_freqs, t)
+    plt.plot(t, recovered_data)
+    plt.xlabel("Time (s)")
+    plt.ylabel("Amplitude (V)")
+    plt.grid(True)
+    plt.title("AM test")
     plt.show()
+
+    return
 
 
 
@@ -455,24 +462,50 @@ demodulate_am_wave('AM tri single.xlsx', 100)
     # original_data_signal = ifft(fft_am_wave)
      #return original_data_signal
 
-#old demodulating AM thoruhg moving freq spectrum. too hard.
+# old demod function for documnetation, problem was with Fourier trans func cutting freqs higher than 500
 
-#def demodulate_AM_wave(filename, carrier_freq) -> dict:
+#def demodulate_am_wave(filename, carrier_freq) -> dict:
     # works only for cosine carrier waves. doesnt work for sine or a combination.
     # take the df of the wave in time space
- #   am_wave = get_data(filename).values()
-    # analyze fourier:
-  #  interval = am_wave.iloc[2,0]-am_wave.iloc[1,0]
-   # am_wave_spectrum = fourier_trans(am_wave.iloc[:,1],interval)
-    # shift by w0 to the right
-    #move_right_wave = deepcopy(am_wave_spectrum)
-  #  for freq in move_right_wave[0].keys():
-     #   move_right_wave[freq + carrier_freq] = move_right_wave[freq]
-      #  move_right_wave[freq] = 0
-    # shift by w0 to the right:
-    #move_left_wave = deepcopy(am_wave_spectrum)
-    #for freq in move_left_wave[0].keys():
-     #   move_left_wave[freq] -= carrier_freq
-    # combine them. we get a^(w) + 1/2 a^(w-2w0) + 1/2 a^(w+2w0):
-    ##   am_wave_spectrum[freq] = move_right_wave[freq] + move_left_wave[freq]
-    # filter w-2w0, w+2w0:
+    # all_sheets = get_data1(filename)
+    # first_sheet_name = list(all_sheets.keys())[0]
+    # am_wave_df = all_sheets[first_sheet_name]
+    # # extract data:
+    # t_data = am_wave_df.iloc[:, 0]
+    # amps_data = am_wave_df.iloc[:, 1]
+    # t = pn.to_numeric(t_data, errors='coerce')
+    # amps = pn.to_numeric(amps_data, errors='coerce')
+    #
+    # # applying noise reduction here is complicated, start without and add later
+    # #original_data_dict = dict(zip(t, amps))
+    # # noise reduction:
+    # #filtered_freq_original = noise_reduction(fourier_trans(original_data_dict)['fourier_trans'])
+    # # how to apply ifft?
+    #
+    # # make local carrier cos(w0*t):
+    # loc_carrier = np.cos(2*np.pi*carrier_freq*t)
+    # # multiply with original signal:
+    # mod_wave_amps = amps * loc_carrier
+    # #make data dict for fft:
+    # mod_wave_data_dict = dict(zip(t, mod_wave_amps))
+    # # fft:
+    # fft_output = fourier_trans(mod_wave_data_dict, True, time_interval={'mode': 'auto'})
+    # results_dict = fft_output['fourier_trans']
+    # # apply low-pass filter:
+    # CUTOFF_FREQ = 50 #in hz
+    # n_samples = len(t)/2 + 1
+    # lp_filtered = np.zeros(int(n_samples))
+    # i = 0
+    # for freq, val in results_dict.items():
+    #     if freq <= CUTOFF_FREQ:
+    #         lp_filtered[i] = val
+    #         i += 1
+    #     else:
+    #         lp_filtered[i] = 0
+    #         i += 1
+    # # make inverse fft:
+    # original_freqs = np.fft.irfft(lp_filtered, len(t))
+    # # add a plot function.
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(t,original_freqs)
+    # plt.show()
