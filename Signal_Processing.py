@@ -28,6 +28,18 @@ def get_data2(filename: str) -> dict:
         output[tab] = data_dict
     return output
 
+def get_data_week1(filename: str) -> dict:
+    ''' this function returns the data as a dict with keys the TAB NAMES and values the data as DF type'''
+    all_sheet_dict = pn.read_excel(filename, sheet_name = None)
+    output = {}
+    for tab, data in all_sheet_dict.items():
+        data = data.iloc[10:,:2]
+        data_dict = {}
+        for i in range(len(data.iloc[:,1])):
+            data_dict[data.iloc[i,0]] = data.iloc[i,1]
+        output[tab] = data_dict
+    return output
+
 def get_time_interval(data:dict) -> float:
     ''' this function gets a measurment dict with keys (meas times) in seconds and returns delta t'''
     meas_times = np.array(list(data.keys()))
@@ -63,12 +75,20 @@ def tri_fourier_fit(x):
     # need to complete this
     ...
 
+def light_decay_func(r,k,b,d):
+    return k/(r**d) + b
+
+
 def fit_func(r, k, b):
         return k/r**2 + b
 
-def get_fit_params(fit_func, x_data, y_data):
+def get_fit_params(fit_func, x_data, y_data, p0: None):
 
-    params, covariance = curve_fit(fit_func, x_data, y_data)
+    if p0 is None:
+        params, covariance = curve_fit(fit_func, x_data, y_data)
+    else:
+        params, covariance = curve_fit(fit_func, x_data, y_data, p0=p0)
+
     output = params, covariance
 
     return output
@@ -347,6 +367,48 @@ def week1_main():
     #get_min_max_plot(analyze_min_max(get_data1(files["75"]), 75), "75Hz")
     #plt.show()
 
+def week1_mid_report():
+
+    files = {"2": "frequency2hz.xlsx",
+             "75": "frequency75hz.xlsx"}
+    for freq, file in files.items():
+        max_values = {}
+        data = get_data_week1(file)
+
+        for dist, tab in data.items():
+            freq_analysis = fourier_trans(tab, with_0 = True)
+            max_value = max(freq_analysis['fourier_trans'].values())
+            max_values[dist[:2]] = max_value
+
+        x_data = [int(x) for x in max_values.keys()]
+        y_data = [np.abs(y) for y in max_values.values()]
+
+        #fix: fit gives k = 35 instead of 2.2
+        p0 = [10, 100, 2]
+        all_fit_params = get_fit_params(light_decay_func, x_data, y_data, p0=p0)
+        func_fit_params = all_fit_params[0]
+
+        def fit_light_decay_func(r):
+            return light_decay_func(r, func_fit_params[0], func_fit_params[1], func_fit_params[2])
+
+        x_for_fit = [i/10+10 for i in range(1000)]
+        y_for_fit = [fit_light_decay_func(r) for r in x_for_fit]
+
+        # Results plot
+        plt.scatter(x_data,y_data,label = "Measured Amplitude (V)")
+        plt.plot(x_for_fit,y_for_fit,label = f"3 parameters fit: v(r)=k/r^d + b, k = {round(func_fit_params[2],3)} - {freq} Hz")
+        plt.legend()
+        plt.show()
+
+        # Residuals plot
+        y_residuals = [y_data[r] - fit_light_decay_func(x_data[r]) for r in range(len(x_data))]
+        plt.plot(x_data, y_residuals, label = f'Fit residuals - {freq} Hz')
+        plt.xlabel('Distance (cm)')
+        plt.ylabel('Amplitude (Volts)')
+        plt.legend()
+        plt.show()
+
+
 # week 2:
 
 # plot noise graph, change to db in the beggining of the code if needed
@@ -359,6 +421,8 @@ def week1_main():
 #plt.show()
 
 # Aliasing:
+
+#week1_mid_report()
 
 def alias_plot(filename):
     alias_data = get_data1(filename)
