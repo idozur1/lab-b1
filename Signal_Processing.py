@@ -177,7 +177,7 @@ noise_amps_db = []
 NOISE_INTERP = interp.interp1d(noise_freqs, noise_amps, bounds_error=False, fill_value=0)
 
 def noise_reduction(data: dict) -> dict:
-    # recieves a dict of freq:volt values in frequency doamin
+    # receives a dict of freq:volt values in frequency domain
     new_data = {}
     for freq, amp in data.items():
         if freq >= 0:
@@ -251,7 +251,7 @@ def get_fourier_plot(files,x_mistake, max_freq, min_freq):
     atten_results = {}
     for freq, filepath in files.items():
         dataset = get_data2(filepath)
-        results = fourier_trans(get_data(filepath),max_freq, min_freq)
+        results = fourier_trans(get_data2(filepath),max_freq, min_freq)
         for key, value in results.items():
             atten_results[int(key[0:len(files.keys())])] = value-x_mistake
 
@@ -267,7 +267,7 @@ def get_fourier_plot(files,x_mistake, max_freq, min_freq):
 
         plt.plot(x_for_fit, y_for_fit, label = f"fit - {freq} Hz Data"),
         plt.legend()
-    plt.show()
+    #plt.show()
 
 def get_min_max_plot(amp_dist_dict: dict, name: str):
     # scatter the measurement's data
@@ -320,7 +320,7 @@ def plot_fourier_transform(data:dict, title:str, xlabel:str, ylabel:str, fit_fun
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend()
-    plt.show()
+    #plt.show()
 
 # Main Functions:
 
@@ -335,17 +335,17 @@ def get_rect_transform(fit_func, residuals_flag = False):
 
         plot_fourier_transform(peaks, tab, residuals_flag=residuals_flag, xlabel='Frequency (Hz)', ylabel='Amplitude (Volts)', fit_func=fit_func)
 
-get_rect_transform(sinc2, residuals_flag = False)
+#get_rect_transform(sinc2, residuals_flag = False)
 
 def week1_main():
     files = {"2": "frequency2hz.xlsx",
              "75": "frequency75hz.xlsx"}
     x_mistake = 0.0097
 
-    get_fourier_plot(files, x_mistake)
-    get_min_max_plot(analyze_min_max(get_data1(files["2"]), 2), "2Hz")
-    get_min_max_plot(analyze_min_max(get_data1(files["75"]), 75), "75Hz")
-    plt.show()
+    #get_fourier_plot(files, x_mistake)
+    #get_min_max_plot(analyze_min_max(get_data1(files["2"]), 2), "2Hz")
+    #get_min_max_plot(analyze_min_max(get_data1(files["75"]), 75), "75Hz")
+    #plt.show()
 
 # week 2:
 
@@ -390,9 +390,9 @@ def alias_plot(filename):
         plt.ylabel("Amplitude (V)")
         plt.grid(True)
         plt.savefig(f"{name}.png")
-        plt.show()
+        #plt.show()
 
-alias_plot("alias.xlsx")
+#alias_plot("alias.xlsx")
 
 
 
@@ -401,19 +401,49 @@ alias_plot("alias.xlsx")
 
 # week 3:
 
-def demodulate_AM_wave(filename, carrier_freq) -> dict:
+def demodulate_am_wave(filename, carrier_freq) -> dict:
     # works only for cosine carrier waves. doesnt work for sine or a combination.
     # take the df of the wave in time space
-    am_wave = get_data1(filename).values()
-    t = np.array(am_wave[:, 0])
-    # make local carrier cos(w0t)
-    loc_carrier = np.cos(2*np.pi*carrier_freq*t)
-    # multiply with original signal
-    mod_wave = am_wave[:, 1] * loc_carrier
-    # analyze fourier:
-    interval = am_wave.iloc[2,0]-am_wave.iloc[1,0]
-   # mod_wave_spectrum = fourier_trans(mod _wave,interval)
+    all_sheets = get_data1(filename)
+    first_sheet_name = list(all_sheets.keys())[0]
+    am_wave_df = all_sheets[first_sheet_name]
+    # extract data:
+    t_data = am_wave_df.iloc[:, 0]
+    amps_data = am_wave_df.iloc[:, 1]
+    t = pn.to_numeric(t_data, errors='coerce')
+    amps = pn.to_numeric(amps_data, errors='coerce')
 
+    # applying noise reduction here is complicated, start without and add later
+    #original_data_dict = dict(zip(t, amps))
+    # noise reduction:
+    #filtered_freq_original = noise_reduction(fourier_trans(original_data_dict)['fourier_trans'])
+    # how to apply ifft?
+
+    # make local carrier cos(w0*t):
+    loc_carrier = np.cos(2*np.pi*carrier_freq*t)
+    # multiply with original signal:
+    mod_wave_amps = amps * loc_carrier
+    #make data dict for fft:
+    mod_wave_data_dict = dict(zip(t, mod_wave_amps))
+    # fft:
+    fft_output = fourier_trans(mod_wave_data_dict, True, time_interval={'mode': 'auto'})
+    results_dict = fft_output['fourier_trans']
+    # apply low-pass filter:
+    CUTOFF_FREQ = 50 #in hz
+    lp_filtered = {}
+    for freq, val in results_dict.items():
+        if freq <= CUTOFF_FREQ:
+            lp_filtered[freq] = val
+    # make inverse fft:
+    original_freqs = np.fft.irfft(list(lp_filtered.values()), len(t))
+    # add a plot function.
+    plt.figure(figsize=(10, 5))
+    plt.plot(original_freqs, t)
+    plt.show()
+
+
+
+demodulate_am_wave('AM tri single.xlsx', 100)
     # READ THIS!!
     # need to finish -
         # 1. take mod wave (now at freq domain) and filter it
