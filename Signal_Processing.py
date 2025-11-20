@@ -465,111 +465,185 @@ def alias_plot(filename):
 
 # week 3:
 
-def demodulate_am_wave(filename, carrier_freq) -> dict:
-    # works only for cosine carrier waves. doesnt work for sine or a combination.
-    # take the df of the wave in time space
-    all_sheets = get_data1(filename)
-    first_sheet_name = list(all_sheets.keys())[0]
-    am_wave_df = all_sheets[first_sheet_name]
-    # extract data:
-    t_data = am_wave_df.iloc[:, 0]
-    amps_data = am_wave_df.iloc[:, 1]
-    t = pn.to_numeric(t_data, errors='coerce')
-    amps = pn.to_numeric(amps_data, errors='coerce')
-
-    # applying noise reduction here is complicated, start without and add later
-    #original_data_dict = dict(zip(t, amps))
-    # noise reduction:
-    #filtered_freq_original = noise_reduction(fourier_trans(original_data_dict)['fourier_trans'])
-    # how to apply ifft?
-
-    # make local carrier cos(w0*t):
-    loc_carrier = np.cos(2*np.pi*carrier_freq*t)
-    # multiply with original signal:
-    mod_wave_amps = amps * loc_carrier
-    # calculate full fft:
-    n_samples = len(t)
-    dt = t.iloc[1] - t.iloc[0]
-    full_fft_vals = np.fft.rfft(mod_wave_amps, norm ='forward')
-    full_freqs = np.fft.rfftfreq(n_samples, dt)
-    # apply low-pass filter:
-    CUTOFF_FREQ = 50 #in hz
-    lp_filtered_array = np.zeros_like(full_fft_vals) # zero padding with N/2 + 1 length
-    for i, freq in enumerate(full_freqs):
-        if (freq <= CUTOFF_FREQ):
-            lp_filtered_array[i] = full_fft_vals[i]
-        # else remains 0 (thats the low pass filter)
-    # make inverse fft after LP filtering:
-    recovered_data = np.fft.irfft(lp_filtered_array, n=n_samples)
-    # Plotting:
-    plt.figure(figsize=(10, 5))
-    plt.plot(t, recovered_data)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude (V)")
-    plt.grid(True)
-    plt.title("AM test")
+def am_demod(filename, carrier_freq):
+    df = pn.read_excel(filename)
+    data_df = df.iloc[7:].copy()
+    # extract data
+    time = pn.to_numeric(data_df.iloc[:, 0], errors='coerce').values
+    voltage = pn.to_numeric(data_df.iloc[:, 1], errors='coerce').values
+    # remove NaN values
+    mask = ~(np.isnan(time) | np.isnan(voltage))
+    time = time[mask]
+    voltage = voltage[mask]
+    # plt.figure(figsize=(16, 6))
+    # plt.plot(time, voltage)
+    # plt.xlabel('Time (s)', fontsize = 14)
+    # plt.ylabel('Voltage (V)', fontsize = 14)
+    # plt.xlim(2.05, 2.25)
+    # plt.grid(True, alpha = 0.3)
+    #plt.show()
+    # get sampling parameters:
+    N = len(voltage)
+    dt = np.mean(np.diff(time))
+    fs = 1 / dt  # Sampling frequency
+    # fft on original signal
+    fft_vals = np.fft.fft(voltage)
+    fft_freq = np.fft.fftfreq(N, dt)
+    # take only positives:
+    positive_freq_idx = fft_freq > 0
+    freq_pos = fft_freq[positive_freq_idx]
+    amplitude_pos = np.abs(fft_vals[positive_freq_idx]) * 2 / N  # with normalization
+    #plot fft of am wave before demodulating:
+    plt.figure(figsize=(16, 6))
+    plt.plot(freq_pos, amplitude_pos)
+    plt.xlabel('Frequency (Hz)', fontsize=14)
+    plt.ylabel('Amplitude (V)', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.xlim(0, 600)
     plt.show()
 
-    return
+    # start demodulation algorithm:
+
+    bandwidth = 50  # Hz
+
+    # band-pass filtering, taking +-50 hz from negative and positive carrier freq:
+    fft_filtered = np.zeros_like(fft_vals, dtype=complex)
+
+    for i, freq in enumerate(fft_freq):
+        # check if frequency is within bandwidth of carrier (positive or negative)
+        if (carrier_freq - bandwidth <= freq <= carrier_freq + bandwidth) or \
+                (-carrier_freq - bandwidth <= freq <= -carrier_freq + bandwidth):
+            fft_filtered[i] = fft_vals[i]
+
+    # shift the positives by w0 down and the negatives by w0 up.
+    # this is equal to multiplying by cosine in the time domain.
+    fft_shifted = np.zeros_like(fft_vals, dtype=complex)
+
+    for i, freq in enumerate(fft_freq):
+        if freq >= 0:
+            # positive -> positives - w0
+            new_freq = freq - carrier_freq
+        else:
+            # negative -> negative + w0
+            new_freq = freq + carrier_freq
+
+        # find the index for the new moved frequency
+        idx = np.argmin(np.abs(fft_freq - new_freq))
+        fft_shifted[idx] += fft_filtered[i]
+
+    # apply low-pass filter to remove high-frequencies components:
+    cutoff_freq = 30  # Hz, fitting for our signal bandwidth
+    fft_lowpass = np.zeros_like(fft_shifted, dtype=complex)
+
+    for i, freq in enumerate(fft_freq):
+        if np.abs(freq) <= cutoff_freq:
+            fft_lowpass[i] = fft_shifted[i]
+
+    # make ifft to retrieve original data:
+    demodulated = np.fft.ifft(fft_lowpass).real
+    demodulated = demodulated * 2 # factoring back by 2 for real amplitudes
+
+    # plot:
+    plt.figure(figsize=(16, 6))
 
 
+    # fft after bandpass filter
+    # freq_viz = fft_freq[fft_freq >= 0]
+    # amp_viz = np.abs(fft_filtered[fft_freq >= 0]) * 2 / N
+    # plt.plot(freq_viz, amp_viz)
+    # plt.xlabel('Frequency (Hz)', fontsize=14)
+    # plt.ylabel('Amplitude (V)', fontsize=14)
+    # plt.title('After Bandpass Filter (around carrier)')
+    # plt.grid(True, alpha=0.3)
+    # plt.xlim(0, 200)
+    # #plt.show()
 
-demodulate_am_wave('AM tri single.xlsx', 100)
-    # READ THIS!!
-    # need to finish -
-        # 1. take mod wave (now at freq domain) and filter it
-        # understand how to filter -> we need to filter out a(2-2w0) and a(w+20)
-        # ifft the filtered wave and get a(t)
+    # plt.figure(figsize=(16, 6))
+    # # fft after frequency shift and bp filter
+    # amp_shifted = np.abs(fft_shifted[fft_freq >= 0]) * 2 / N
+    # plt.plot(freq_viz, amp_shifted)
+    # plt.xlabel('Frequency (Hz)', fontsize=14)
+    # plt.ylabel('Amplitude (V)', fontsize=14)
+    # plt.title('After Frequency Shift (moved to baseband)')
+    # plt.grid(True, alpha=0.3)
+    # plt.xlim(0, 100)
+    #plt.show()
 
+    plt.figure(figsize=(16, 6))
+    # real A(t) signal in time domain:
+    plt.subplot(2, 1, 1)
+    plt.plot(time, demodulated, linewidth=1)
+    plt.xlabel('Time (s)', fontsize=14)
+    plt.ylabel('Voltage (V)', fontsize=14)
+    plt.grid(True, alpha=0.3)
 
+    plt.subplot(2, 1, 2)
+    plt.plot(time, demodulated, linewidth=1)
+    plt.xlim(2,4)
+    plt.xlabel('Time (s)', fontsize=14)
+    plt.ylabel('Voltage (V)', fontsize=14)
+    plt.grid(True, alpha=0.3)
 
-    # original_data_signal = ifft(fft_am_wave)
-     #return original_data_signal
+    plt.tight_layout()
+   # plt.show()
 
-# old demod function for documnetation, problem was with Fourier trans func cutting freqs higher than 500
+def am_demod_main():
+   # am_demod('AM tri single.xlsx', 100)
+    am_demod('AM tri double.xlsx', 100)
+    #am_demod('AM tri double.xlsx', 430)
+if __name__ == '__main__':
+    am_demod_main()
 
-#def demodulate_am_wave(filename, carrier_freq) -> dict:
-    # works only for cosine carrier waves. doesnt work for sine or a combination.
-    # take the df of the wave in time space
-    # all_sheets = get_data1(filename)
-    # first_sheet_name = list(all_sheets.keys())[0]
-    # am_wave_df = all_sheets[first_sheet_name]
-    # # extract data:
-    # t_data = am_wave_df.iloc[:, 0]
-    # amps_data = am_wave_df.iloc[:, 1]
-    # t = pn.to_numeric(t_data, errors='coerce')
-    # amps = pn.to_numeric(amps_data, errors='coerce')
-    #
-    # # applying noise reduction here is complicated, start without and add later
-    # #original_data_dict = dict(zip(t, amps))
-    # # noise reduction:
-    # #filtered_freq_original = noise_reduction(fourier_trans(original_data_dict)['fourier_trans'])
-    # # how to apply ifft?
-    #
-    # # make local carrier cos(w0*t):
-    # loc_carrier = np.cos(2*np.pi*carrier_freq*t)
-    # # multiply with original signal:
-    # mod_wave_amps = amps * loc_carrier
-    # #make data dict for fft:
-    # mod_wave_data_dict = dict(zip(t, mod_wave_amps))
-    # # fft:
-    # fft_output = fourier_trans(mod_wave_data_dict, True, time_interval={'mode': 'auto'})
-    # results_dict = fft_output['fourier_trans']
-    # # apply low-pass filter:
-    # CUTOFF_FREQ = 50 #in hz
-    # n_samples = len(t)/2 + 1
-    # lp_filtered = np.zeros(int(n_samples))
-    # i = 0
-    # for freq, val in results_dict.items():
-    #     if freq <= CUTOFF_FREQ:
-    #         lp_filtered[i] = val
-    #         i += 1
-    #     else:
-    #         lp_filtered[i] = 0
-    #         i += 1
-    # # make inverse fft:
-    # original_freqs = np.fft.irfft(lp_filtered, len(t))
-    # # add a plot function.
-    # plt.figure(figsize=(10, 5))
-    # plt.plot(t,original_freqs)
-    # plt.show()
+# old AM demod tries:
+
+# #demodulate_am_wave('AM tri single.xlsx', 100)
+#
+#
+# def am_demod_test(filename, carrier_freq):
+#     all_sheets = get_data1(filename)
+#     first_sheet_name = list(all_sheets.keys())[0]
+#     am_wave_df = all_sheets[first_sheet_name]
+#     # extract data:
+#     t_data = am_wave_df.iloc[:, 0]
+#     amps_data = am_wave_df.iloc[:, 1]
+#     t = pn.to_numeric(t_data, errors='coerce')
+#     amps = pn.to_numeric(amps_data, errors='coerce')
+#     # fft:
+#     data_dict = dict(zip(t, amps))
+#     fft_data = fourier_trans(data_dict, with_0=True)
+#     fft_output = fft_data['fourier_trans']
+#     # bandwidth filter:
+#     bw_filtered = {}
+#     for freq, val in fft_output.items():
+#         if carrier_freq - 25 <= freq <= carrier_freq + 25:
+#             bw_filtered[freq] = val
+#         else:
+#             bw_filtered[freq] = 0
+#     # move frequencies down by carrier_freq:
+#     shifted_filtered = {}
+#     for freq, val in bw_filtered.items():
+#         new_freq = freq - carrier_freq
+#         if new_freq >= 0:  # Keep only positive frequencies
+#             shifted_filtered[new_freq] = val
+#     # Convert back to arrays for inverse FFT:
+#     n_samples = len(t)
+#     dt = t.iloc[1] - t.iloc[0]
+#     freqs_array = np.fft.rfftfreq(n_samples, dt)
+#     fft_array = np.zeros(len(freqs_array), dtype=complex)
+#     # Fill the FFT array with filtered values
+#     for i, freq in enumerate(freqs_array):
+#         if freq in shifted_filtered:
+#             fft_array[i] = shifted_filtered[freq]
+#     # Perform inverse FFT:
+#     recovered_data = np.fft.irfft(fft_array, n=n_samples)
+#     recovered_data = 2 * recovered_data # fix half amp error
+#     # plot data
+#     plt.figure(figsize=(10, 5))
+#     plt.plot(t, recovered_data)
+#     plt.xlabel("Time (s)")
+#     plt.ylabel("Amplitude (V)")
+#     plt.grid(True)
+#     plt.title("AM demod test2")
+#     plt.show()
+
+#am_demod_test('AM tri single.xlsx', 100)
