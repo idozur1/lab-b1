@@ -48,13 +48,22 @@ def fft(data: tuple):
     plt.xlabel('Frequency (KHz)')
     plt.ylabel('Amplitude(V)')
     plt.xlim(0, 50)
-    plt.grid(True)
+    plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
     plt.show()
 
+
+fft(get_data('100ms_no_movement.csv'))
 fft(get_data('900ms_moves_backward.csv'))
 fft(get_data('900ms_moves_forward.csv'))
 
+plt.figure(figsize=(10,5))
+plt.plot(get_data('900ms_moves_forward.csv')[2]*1000, get_data('900ms_moves_forward.csv')[3])
+plt.xlabel('time (ms)')
+plt.ylabel('Amplitude(V)')
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
 
 
