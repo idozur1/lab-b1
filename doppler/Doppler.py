@@ -1,10 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
-import scipy.interpolate as interp
 
 
 def get_data(filename):
@@ -12,20 +9,35 @@ def get_data(filename):
     df = data.iloc[:, 3:5]
     time = df.iloc[:, 0].values
     amps = df.iloc[:, 1].values
-    dt = float(data.iloc[1,1])
+    dt = float(data.iloc[1, 1])
     return (data, df, time, amps, dt)
 
+
 def fft(data: tuple):
-    # data = (data, df, time, amps, dt)
-    dt = data[4]
-    N = len(data[3])
+    data, df, time, amps, dt = data
+    dt_real = dt
+    N = len(amps)
+
+    # Zero-padding to get better frequency resolution
+    # Pad to make duration = 0.1 seconds for ~10 Hz resolution
+    desired_duration = 0.1  # seconds
+    desired_N = int(desired_duration / dt_real)
+
+    # Pad with zeros
+    amps_padded = np.pad(amps, (0, desired_N - N), mode='constant', constant_values=0)
+    N_padded = len(amps_padded)
+
+    print(f"Original N: {N}")
+    print(f"Padded N: {N_padded}")
+    print(f"New frequency resolution: {1 / (N_padded * dt_real):.2f} Hz")
+
     # calculate fft:
-    fft_output = np.fft.rfft(data[3])
+    fft_output = np.fft.rfft(amps_padded)
     fft_mag = np.abs(fft_output)
-    #normlize magnitudes:
-    fft_mag_volts = fft_mag * (2/N)
-    freqs = np.fft.rfftfreq(N, dt)
-    print(len(freqs))
+    # normalize magnitudes:
+    fft_mag_volts = fft_mag * (2 / N)  # Still normalize by original N
+    freqs = np.fft.rfftfreq(N_padded, dt_real)
+
     # find max value (peak) - main freq:
     search_spectrum = fft_mag[1:]
     peak_height_threshold = np.max(search_spectrum) * 0.1
@@ -40,13 +52,13 @@ def fft(data: tuple):
     freqs_khz = freqs / 1000
     main_freq_khz = main_freq / 1000
 
-    # plot
-    plt.figure(figsize=(10,5))
-    plt.plot(freqs_khz, fft_mag_volts)
+
+    plt.figure(figsize=(14, 6), dpi=150)
+    plt.plot(freqs_khz, fft_mag_volts, linewidth=0.5)
     if main_mag > 0:
         plt.scatter(main_freq_khz, main_mag, color='red', marker='o', s=100, zorder=5,
                     label=f'Main Peak: {main_freq:.2f} Hz')
-    plt.xlabel('Frequency (KHz)')
+    plt.xlabel('Frequency (kHz)')
     plt.ylabel('Amplitude(V)')
     plt.xlim(0, 50)
     plt.grid(True, alpha=0.3)
@@ -54,5 +66,4 @@ def fft(data: tuple):
     plt.tight_layout()
     plt.show()
 
-
-fft(get_data('foreward_with_trigger.csv'))
+fft(get_data('final/foreward_with_trigger.csv'))
