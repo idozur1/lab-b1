@@ -356,6 +356,8 @@ def get_rect_transform(fit_func, residuals_flag = False):
         plot_fourier_transform(peaks, tab, residuals_flag=residuals_flag, xlabel='Frequency (Hz)', ylabel='Amplitude (Volts)', fit_func=fit_func)
 
 get_rect_transform(sinc, residuals_flag = False)
+#
+
 
 def week1_main():
     files = {"2": "frequency2hz.xlsx",
