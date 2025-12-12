@@ -2,15 +2,15 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-FILE_DIR = 'insert file dir here as str'
-PARTICLE_NUM = 0 # change here
-INTERVAL_LIST = [] # insert intervals in number of frames
-FRAMERATE = 0 # insert framerate in secs (eg 1/15)
+FILE_DIR = 'outputs_3/progress.csv'
+PARTICLE_NUM = 173 # change here
+INTERVAL_LIST = [2] # insert intervals in number of frames
+FRAMERATE = 1/15 # insert framerate in secs (eg 1/15)
 PARTICLE_LIST = [] # insert numbers of needed paticles. insert particle NUMBER (int)
 
 def get_data(filename: str) -> pd.DataFrame:
     ''' a function that takes the file name (csv) and returns data frame'''
-    data = pd.read_csv(filename)
+    data = pd.read_csv(filename, engine = 'python')
     return data
 
 def get_single_data(data: pd.DataFrame, particle_num: int) -> pd.DataFrame:
@@ -84,9 +84,5 @@ def final():
 
 if __name__ == '__main__':
     main()
-
-
-
-
 
 
